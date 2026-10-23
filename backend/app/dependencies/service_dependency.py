@@ -9,7 +9,9 @@ from app.services.detection_service import DetectionService
 from app.services.estimate_service import EstimateService
 from app.services.image_service import ImageService
 from app.services.material_service import MaterialService
+from app.services.measurement_service import MeasurementService
 from app.services.project_service import ProjectService
+from app.services.quantity_service import QuantityService
 from app.services.region_service import RegionService
 from app.services.report_service import ReportService
 
@@ -60,6 +62,18 @@ def get_detection_service(
     container: ServiceContainer = Depends(get_container),
 ) -> DetectionService:
     return container.detection_service
+
+
+def get_measurement_service(
+    container: ServiceContainer = Depends(get_container),
+) -> MeasurementService:
+    return container.measurement_service
+
+
+def get_quantity_service(
+    container: ServiceContainer = Depends(get_container),
+) -> QuantityService:
+    return container.quantity_service
 
 
 def get_estimate_service(

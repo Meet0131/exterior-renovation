@@ -1,6 +1,8 @@
 # Frontend
 
-Vite + React + TypeScript + Tailwind skeleton for the Aangan exterior renovation planner.
+Vite + React + TypeScript + Tailwind workspace for the RenoVision exterior renovation planner.
+
+The Task 1 foundation is in place: the API layer, URL-backed workspace state, start screen, top bar and five-step shell. The upload screen (Task 2) adds photo selection, client checks, upload progress and the quality card. The mark-regions screen (Task 3) adds the photo canvas, ordered region list, inspector, live gross/net/final measurements, scale calibration with draggable endpoints, and debounced region and calibration saves. Task 4 adds the region tools: polygon and railing-line drawing with previews and keyboard close, draggable point editing with midpoint inserts and point deletion, the new-region form, duplicate, and the surface/role rules. Task 5 adds detection-suggestion review with accept, reject, accept-all, edit-before-accept and cached scans, plus linked highlighting between a suggestion in the review list and its shape on the photo; it also adds the opening-deduction helper, opening manual areas, and reference-only outlines. Task 6 adds the finishes screen: per-region material and colour choices filtered by surface, preset A/B/C application in one save, material notes, the custom-mix label, the flat colour photo preview, the unassigned summary and the advisory estimate chip. Task 7 adds the live browser preview: paint that keeps the photo's light and shade, physically scaled texture patterns, openings cut from the finish masks, reference outlines, metal and glass railing overlays, and the pointer/keyboard before/after slider. Task 8 adds the finalize step and the estimate screen: Continue to estimate flushes saves, checks for unassigned finishes, probes or renders the stored final image with a blocking progress state and Retry, and opens the measured estimate table with editable material and labour rates, immediate local amounts and totals, debounced per-region rate saves, reset to catalog rates, 422 recovery that names the region to fix, and the contingency summary. Task 9 adds the report screen and PDF download: the original photo beside the stored final render, the materials and cost tables, the material, labour, contingency and grand totals, a server-generated PDF with retry, the missing-preview recovery, and the report estimate fix path. Task 10 adds the multi-photo UI: the photo strip with switching, add-photo and the 10-photo cap, the URL-backed active photo, project subtotals with one contingency, per-photo report cards, and per-photo missing-preview and estimate-422 recovery. Feature work lives in [`../docs/Tasks/frontend_task.md`](../docs/Tasks/frontend_task.md); the backend API contract is in [`../docs/DATABASE_DESIGN.md`](../docs/DATABASE_DESIGN.md) §6.
 
 Run from this folder:
 
@@ -10,5 +12,3 @@ npm run dev
 ```
 
 The dev server proxies `/api` to `http://127.0.0.1:8000`. Start the backend first.
-
-Feature work lives in `../docs/PLAN.md`. This folder currently contains the setup shell only.

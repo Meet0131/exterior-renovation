@@ -32,7 +32,21 @@ class ImageUpdateResponse(ImageUploadResponse):
     calibration: CalibrationPayload | None
 
 
+class FinalizeResponse(BaseModel):
+    image_id: UUID
+    stored: bool
+    width: int
+    height: int
+    size_bytes: int
+
+
 @dataclass(frozen=True)
 class SourceImage:
+    id: UUID
+    content: bytes
+
+
+@dataclass(frozen=True)
+class FinalPreview:
     id: UUID
     content: bytes

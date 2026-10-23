@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from app.config import settings
+from app.config import Config
 from app.constants.constants import (
     ALLOWED_IMAGE_FORMATS,
     MAX_IMAGE_MEAN_LUMINANCE,
@@ -33,11 +33,12 @@ class ImageUploadService:
     """Validates an uploaded photo and converts it to a stored WebP."""
 
     def prepare_image(self, data: bytes) -> PreparedImage:
-        if len(data) > settings.max_upload_bytes:
+        logger.info(f"Prepare image started: size_bytes: {len(data)}")
+        if len(data) > Config.MAX_UPLOAD_BYTES:
             _raise_image_error(
                 413,
                 "IMAGE_TOO_LARGE",
-                f"This photo is larger than {settings.max_upload_mb} MB. "
+                f"This photo is larger than {Config.MAX_UPLOAD_MB} MB. "
                 "Use a smaller file.",
             )
         if not data:
@@ -69,7 +70,21 @@ class ImageUploadService:
                 "Use a JPEG, PNG or WebP photo.",
             )
 
+        logger.debug(
+            f"Opened image: format: {image.format} | mode: {image.mode} | "
+            f"width: {image.size[0]} | height: {image.size[1]}"
+        )
+
         try:
+            # JPEG can decode at a reduced scale; PNG and WebP cannot.
+            if image.format in {"JPEG", "MPO"}:
+                image.draft(
+                    "RGB",
+                    (
+                        MAX_STORED_IMAGE_LONG_SIDE_PX,
+                        MAX_STORED_IMAGE_LONG_SIDE_PX,
+                    ),
+                )
             image.load()
         except Exception:
             _raise_image_error(
@@ -88,8 +103,25 @@ class ImageUploadService:
                 "on its long side.",
             )
 
+        # Resize before the quality checks: full-resolution gradients on a
+        # large phone photo can exceed the deployment memory limit.
+        image.thumbnail(
+            (MAX_STORED_IMAGE_LONG_SIDE_PX, MAX_STORED_IMAGE_LONG_SIDE_PX),
+            Image.Resampling.LANCZOS,
+        )
+        image = _convert_to_rgb(image)
+        width, height = image.size
+        logger.debug(
+            f"Resized image: width: {width} | height: {height}"
+        )
+
         gray = np.asarray(image.convert("L"))
         blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        mean_luminance = float(gray.mean())
+        logger.debug(
+            f"Image quality: blur_score: {blur_score:.2f} | "
+            f"mean_luminance: {mean_luminance:.2f}"
+        )
         if blur_score < MIN_IMAGE_BLUR_SCORE:
             _raise_image_error(
                 422,
@@ -98,7 +130,6 @@ class ImageUploadService:
                 "Use a sharper, well-lit photo.",
             )
 
-        mean_luminance = float(gray.mean())
         if mean_luminance < MIN_IMAGE_MEAN_LUMINANCE:
             _raise_image_error(
                 422,
@@ -112,21 +143,12 @@ class ImageUploadService:
                 "This photo is too bright. Avoid direct glare or overexposure.",
             )
 
-        image = _convert_to_rgb(image)
-        image.thumbnail(
-            (MAX_STORED_IMAGE_LONG_SIDE_PX, MAX_STORED_IMAGE_LONG_SIDE_PX),
-            Image.Resampling.LANCZOS,
-        )
-        width, height = image.size
-
         buffer = BytesIO()
         image.save(buffer, format="WEBP", quality=WEBP_QUALITY)
         content = buffer.getvalue()
         logger.info(
-            "Prepared image upload: %sx%s, %s bytes",
-            width,
-            height,
-            len(content),
+            f"Prepare image completed: width: {width} | height: {height} | "
+            f"input_bytes: {len(data)} | stored_bytes: {len(content)}"
         )
         return PreparedImage(content=content, width=width, height=height)
 
@@ -143,7 +165,7 @@ def _convert_to_rgb(image: Image.Image) -> Image.Image:
 
 
 def _raise_image_error(status_code: int, code: str, message: str) -> NoReturn:
-    logger.info("Rejected image upload: code=%s", code)
+    logger.warning(f"Image upload rejected: code: {code}")
     raise ApiError(
         status_code=status_code,
         code=code,

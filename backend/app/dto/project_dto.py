@@ -37,3 +37,8 @@ class ProjectResponse(BaseModel):
 
 class ProjectDetailResponse(ProjectResponse):
     images: list[ProjectImageResponse]
+
+
+class ProjectSummaryResponse(ProjectResponse):
+    image_count: int
+    cover_image_id: UUID | None = None

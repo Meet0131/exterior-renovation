@@ -5,15 +5,72 @@
       "name": "Exterior Emulsion Paint",
       "category": "paint",
       "unit": "L",
-      "surfaces": ["wall", "pillar", "parapet", "balcony_slab", "trim"],
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "balcony_slab",
+        "trim"
+      ],
       "coverage_per_unit": 120,
       "coats": 2,
-      "pack_sizes": [20, 4, 1],
+      "pack_sizes": [
+        20,
+        4,
+        1
+      ],
       "waste_pct": 10,
       "material_rate": 320.0,
       "labor_rate": 26.0,
       "labor_unit": "sqft",
-      "colors": ["#A9BFA8", "#E4DCCB", "#C98F6B", "#8D9AA0", "#4A524D", "#E4D3B4", "#DAD5C7"],
+      "colors": [
+        "#F3ECDD",
+        "#E8D9BE",
+        "#D9C5A0",
+        "#C7AE85",
+        "#A8B59B",
+        "#7F8F6B",
+        "#C47A4E",
+        "#A9503A",
+        "#C79A45",
+        "#6E8791",
+        "#2F5D62",
+        "#3A3F42"
+      ],
+      "texture": "paint"
+    },
+    {
+      "id": "paint_metallic",
+      "name": "Metallic Exterior Paint",
+      "category": "paint",
+      "unit": "L",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "trim"
+      ],
+      "coverage_per_unit": 100,
+      "coats": 2,
+      "pack_sizes": [
+        10,
+        4,
+        1
+      ],
+      "waste_pct": 10,
+      "material_rate": 560.0,
+      "labor_rate": 38.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#D9C5A3",
+        "#C08A5E",
+        "#8C5A3B",
+        "#A7ABAD",
+        "#6B7275",
+        "#3B4145",
+        "#ECE7DC",
+        "#2F4F52"
+      ],
       "texture": "paint"
     },
     {
@@ -21,14 +78,95 @@
       "name": "Texture Finish",
       "category": "texture",
       "unit": "kg",
-      "surfaces": ["wall", "pillar"],
+      "surfaces": [
+        "wall",
+        "pillar"
+      ],
       "coverage_per_unit": 25,
-      "pack_sizes": [5, 1],
+      "pack_sizes": [
+        5,
+        1
+      ],
       "waste_pct": 12,
       "material_rate": 140.0,
       "labor_rate": 45.0,
       "labor_unit": "sqft",
-      "colors": ["#D9C7A3", "#C9B79C", "#8E7B63", "#B7A58A"],
+      "colors": [
+        "#EFE7D6",
+        "#DBCDB4",
+        "#C4B49A",
+        "#A8977D",
+        "#8C7E6A",
+        "#C98F6B",
+        "#98A280",
+        "#6F7472",
+        "#4B4D4C"
+      ],
+      "texture": "texture"
+    },
+    {
+      "id": "microcement",
+      "name": "Microcement Facade Finish",
+      "category": "texture",
+      "unit": "kg",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "balcony_slab",
+        "trim"
+      ],
+      "coverage_per_unit": 10,
+      "coats": 2,
+      "pack_sizes": [
+        20,
+        10,
+        5
+      ],
+      "waste_pct": 10,
+      "material_rate": 360.0,
+      "labor_rate": 180.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#DDD7CB",
+        "#C6BEB1",
+        "#ADA79B",
+        "#8E8A83",
+        "#6B6862",
+        "#BE9B7E"
+      ],
+      "texture": "texture"
+    },
+    {
+      "id": "lime_plaster",
+      "name": "Lime Plaster Finish",
+      "category": "texture",
+      "unit": "kg",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet"
+      ],
+      "coverage_per_unit": 8,
+      "coats": 2,
+      "pack_sizes": [
+        20,
+        10,
+        5
+      ],
+      "waste_pct": 12,
+      "material_rate": 240.0,
+      "labor_rate": 140.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#F1EBDD",
+        "#E3D9C6",
+        "#D2C4AC",
+        "#BCAA8E",
+        "#A08D70",
+        "#8C7F6C",
+        "#C9A98C"
+      ],
       "texture": "texture"
     },
     {
@@ -36,27 +174,211 @@
       "name": "Natural Stone Cladding",
       "category": "cladding",
       "unit": "sqft",
-      "surfaces": ["wall", "pillar", "parapet"],
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet"
+      ],
       "coverage_per_unit": 1,
       "waste_pct": 8,
       "material_rate": 220.0,
       "labor_rate": 95.0,
       "labor_unit": "sqft",
-      "colors": ["#C9B79C", "#B7A58A", "#8E7B63", "#6F6254"],
+      "colors": [
+        "#D8CBB2",
+        "#C6B598",
+        "#A99579",
+        "#8A7B66",
+        "#706C64",
+        "#4B4E4F",
+        "#5B6A64",
+        "#7B6752"
+      ],
       "texture": "stone"
+    },
+    {
+      "id": "sandstone_cladding",
+      "name": "Sandstone Cladding",
+      "category": "cladding",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 10,
+      "material_rate": 300.0,
+      "labor_rate": 110.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#DCCBAE",
+        "#CDB892",
+        "#B8A17A",
+        "#9C8764",
+        "#7D6B52",
+        "#C9B79C",
+        "#A08E70"
+      ],
+      "texture": "stone"
+    },
+    {
+      "id": "granite_cladding",
+      "name": "Granite Cladding",
+      "category": "cladding",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "balcony_slab"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 8,
+      "material_rate": 420.0,
+      "labor_rate": 160.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#C9C4BC",
+        "#AAA49B",
+        "#8A857E",
+        "#5E5B57",
+        "#3C3A38",
+        "#7C6A58",
+        "#9A8A76"
+      ],
+      "texture": "stone"
+    },
+    {
+      "id": "acp_cladding",
+      "name": "Aluminium Composite Panel (ACP)",
+      "category": "cladding",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "balcony_slab"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 10,
+      "material_rate": 260.0,
+      "labor_rate": 120.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#DAD5CA",
+        "#B8AA90",
+        "#9A6A46",
+        "#6F7579",
+        "#3F4549",
+        "#C0C5C7",
+        "#2F4A52",
+        "#8A3F2E"
+      ],
+      "texture": "paint"
+    },
+    {
+      "id": "hpl_cladding",
+      "name": "HPL Exterior Cladding",
+      "category": "cladding",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 8,
+      "material_rate": 300.0,
+      "labor_rate": 130.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#8C5E3C",
+        "#6F4A2F",
+        "#B08050",
+        "#4A3728",
+        "#C9A882",
+        "#5C5148"
+      ],
+      "texture": "wood"
+    },
+    {
+      "id": "terracotta_cladding",
+      "name": "Terracotta Rain Screen",
+      "category": "cladding",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 10,
+      "material_rate": 480.0,
+      "labor_rate": 220.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#C0663F",
+        "#B45F3C",
+        "#D08A5E",
+        "#9C4A32",
+        "#C79A45",
+        "#8E4B36",
+        "#D9B08C",
+        "#6F4A3A"
+      ],
+      "texture": "tile"
     },
     {
       "id": "wall_tiles",
       "name": "Exterior Wall Tiles",
       "category": "tile",
       "unit": "box",
-      "surfaces": ["wall", "balcony_slab"],
+      "surfaces": [
+        "wall",
+        "balcony_slab"
+      ],
       "coverage_per_unit": 10,
       "waste_pct": 8,
       "material_rate": 650.0,
       "labor_rate": 55.0,
       "labor_unit": "sqft",
-      "colors": ["#DAD5C7", "#C9B79C", "#8D9AA0", "#A85B12"],
+      "colors": [
+        "#ECE7DC",
+        "#D8CEBC",
+        "#BAB3A5",
+        "#8D9AA0",
+        "#6E7A72",
+        "#2F3336",
+        "#BFA77A",
+        "#C0A08A"
+      ],
+      "texture": "tile"
+    },
+    {
+      "id": "porcelain_panel",
+      "name": "Porcelain Facade Panel",
+      "category": "tile",
+      "unit": "sqft",
+      "surfaces": [
+        "wall",
+        "pillar",
+        "parapet",
+        "balcony_slab"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 12,
+      "material_rate": 420.0,
+      "labor_rate": 180.0,
+      "labor_unit": "sqft",
+      "colors": [
+        "#F0EDE5",
+        "#D9D2C3",
+        "#BAB4A7",
+        "#8D8B85",
+        "#5C5F60",
+        "#3B3E3F"
+      ],
       "texture": "tile"
     },
     {
@@ -64,13 +386,24 @@
       "name": "WPC Louver Panel",
       "category": "panel",
       "unit": "sqft",
-      "surfaces": ["wall", "parapet", "balcony_slab"],
+      "surfaces": [
+        "wall",
+        "parapet",
+        "balcony_slab"
+      ],
       "coverage_per_unit": 1,
       "waste_pct": 5,
       "material_rate": 280.0,
       "labor_rate": 85.0,
       "labor_unit": "sqft",
-      "colors": ["#8B5E3C", "#6F4A2F", "#A97B50"],
+      "colors": [
+        "#8C5E3C",
+        "#6F4A2F",
+        "#A97B50",
+        "#4A3728",
+        "#6B6259",
+        "#C2A887"
+      ],
       "texture": "wood"
     },
     {
@@ -78,13 +411,23 @@
       "name": "MS Metal Railing",
       "category": "railing",
       "unit": "rft",
-      "surfaces": ["railing"],
+      "surfaces": [
+        "railing"
+      ],
       "coverage_per_unit": 1,
       "waste_pct": 5,
       "material_rate": 700.0,
       "labor_rate": 250.0,
       "labor_unit": "rft",
-      "colors": ["#2F3437", "#6B7280", "#B08D57"],
+      "colors": [
+        "#2F3437",
+        "#4C5257",
+        "#6B7280",
+        "#9AA0A4",
+        "#B08D57",
+        "#2F5D62",
+        "#7A3B2E"
+      ],
       "texture": "metal"
     },
     {
@@ -92,14 +435,47 @@
       "name": "Toughened Glass Railing (12 mm)",
       "category": "railing",
       "unit": "rft",
-      "surfaces": ["railing"],
+      "surfaces": [
+        "railing"
+      ],
       "coverage_per_unit": 1,
       "waste_pct": 5,
       "material_rate": 1600.0,
       "labor_rate": 450.0,
       "labor_unit": "rft",
-      "colors": ["#B7C4C9", "#8A9A9F"],
+      "colors": [
+        "#D7E2E4",
+        "#B7C4C9",
+        "#8A9A9F",
+        "#6E767A",
+        "#9FB8B4",
+        "#B8C4D0",
+        "#C9B8A8"
+      ],
       "texture": "glass"
+    },
+    {
+      "id": "stainless_railing",
+      "name": "Stainless Steel & Cable Railing",
+      "category": "railing",
+      "unit": "rft",
+      "surfaces": [
+        "railing"
+      ],
+      "coverage_per_unit": 1,
+      "waste_pct": 3,
+      "material_rate": 1250.0,
+      "labor_rate": 400.0,
+      "labor_unit": "rft",
+      "colors": [
+        "#D4D8DB",
+        "#C9CED1",
+        "#AEB4B7",
+        "#8A9094",
+        "#6E7478",
+        "#3A3C3D"
+      ],
+      "texture": "metal"
     }
   ]
 }

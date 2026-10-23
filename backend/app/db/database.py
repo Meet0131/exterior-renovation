@@ -2,6 +2,8 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -9,7 +11,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-from app.config import settings
+from app.config import Config
+from app.exceptions import ApiError
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +22,13 @@ class Base(DeclarativeBase):
 
 
 engine = create_async_engine(
-    settings.database_url,
-    echo=settings.database_echo,
+    Config.DATABASE_URL,
+    echo=Config.DATABASE_ECHO,
     pool_pre_ping=True,
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_max_overflow,
-    pool_timeout=settings.database_pool_timeout,
-    pool_recycle=settings.database_pool_recycle,
+    pool_size=Config.DATABASE_POOL_SIZE,
+    max_overflow=Config.DATABASE_MAX_OVERFLOW,
+    pool_timeout=Config.DATABASE_POOL_TIMEOUT,
+    pool_recycle=Config.DATABASE_POOL_RECYCLE,
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -40,11 +43,23 @@ AsyncSessionLocal = async_sessionmaker(
 async def db_session_manager() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
+            logger.debug("DB session opened")
             yield session
             await session.commit()
+            logger.debug("DB session committed")
+        except (ApiError, RequestValidationError) as exc:
+            await session.rollback()
+            logger.debug(
+                f"DB session rolled back: error_type: {type(exc).__name__}"
+            )
+            raise
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.exception("Database error during DB session")
+            raise
         except Exception:
             await session.rollback()
-            logger.debug("Database session rolled back", exc_info=True)
+            logger.exception("Unexpected error during DB session")
             raise
 
 

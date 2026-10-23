@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from app.dto.region_dto import (
@@ -21,6 +22,8 @@ from app.utils.decimal_utils import (
 )
 from app.utils.geometry_utils import has_self_intersection
 
+logger = logging.getLogger(__name__)
+
 
 class RegionService:
     """Reads, replaces and edits the regions drawn on a photo."""
@@ -36,6 +39,7 @@ class RegionService:
         self.material_service = material_service
 
     async def get_regions(self, image_id: UUID) -> RegionListResponse:
+        logger.debug(f"Get regions started: image_id: {image_id}")
         image = await self.image_repository.get_by_id(image_id)
         if image is None:
             raise ApiError(
@@ -45,16 +49,25 @@ class RegionService:
             )
 
         regions = await self.region_repository.get_for_image(image_id)
-        return RegionListResponse(
+        response = RegionListResponse(
             image_id=image_id,
             regions=[
                 RegionResponse.model_validate(region) for region in regions
             ],
         )
+        logger.debug(
+            f"Get regions completed: image_id: {image_id} | "
+            f"region_count: {len(response.regions)}"
+        )
+        return response
 
     async def replace_regions(
         self, image_id: UUID, data: ReplaceRegionsRequest
     ) -> RegionListResponse:
+        logger.info(
+            f"Replace regions started: image_id: {image_id} | "
+            f"request_region_count: {len(data.regions)}"
+        )
         image = await self.image_repository.get_by_id(image_id)
         if image is None:
             raise ApiError(
@@ -74,6 +87,13 @@ class RegionService:
         payload_ids = {
             payload.id for payload in data.regions if payload.id is not None
         }
+        created_count = sum(
+            1 for payload in data.regions if payload.id is None
+        )
+        updated_count = len(data.regions) - created_count
+        deleted_count = sum(
+            1 for region in existing if region.id not in payload_ids
+        )
 
         for payload in data.regions:
             if payload.id is None:
@@ -95,16 +115,31 @@ class RegionService:
         await self.region_repository.commit()
 
         regions = await self.region_repository.get_for_image(image_id)
-        return RegionListResponse(
+        response = RegionListResponse(
             image_id=image_id,
             regions=[
                 RegionResponse.model_validate(region) for region in regions
             ],
         )
+        logger.debug(
+            f"Replace regions changes: image_id: {image_id} | "
+            f"created: {created_count} | updated: {updated_count} | "
+            f"deleted: {deleted_count} | visual_changed: {visual_changed}"
+        )
+        logger.info(
+            f"Replace regions completed: image_id: {image_id} | "
+            f"region_count: {len(response.regions)}"
+        )
+        return response
 
     async def update_region(
         self, image_id: UUID, region_id: UUID, data: RegionPatchPayload
     ) -> RegionResponse:
+        logger.info(
+            f"Update region started: image_id: {image_id} | "
+            f"region_id: {region_id} | "
+            f"fields: {sorted(data.model_fields_set)}"
+        )
         region = await self.region_repository.get_by_id(region_id)
         if region is None or region.image_id != image_id:
             raise ApiError(
@@ -114,7 +149,8 @@ class RegionService:
             )
 
         effective = self._build_patched_payload(region, data)
-        if effective.material_id != region.material_id:
+        material_changed = effective.material_id != region.material_id
+        if material_changed:
             if "material_rate_override" not in data.model_fields_set:
                 effective.material_rate_override = None
             if "labor_rate_override" not in data.model_fields_set:
@@ -132,7 +168,17 @@ class RegionService:
                 image.final_preview_bytes = None
 
         await self.region_repository.commit()
-        return RegionResponse.model_validate(region)
+        response = RegionResponse.model_validate(region)
+        logger.debug(
+            f"Update region changes: image_id: {image_id} | "
+            f"region_id: {region_id} | material_changed: {material_changed} | "
+            f"visual_changed: {visual_changed}"
+        )
+        logger.info(
+            f"Update region completed: image_id: {image_id} | "
+            f"region_id: {response.id}"
+        )
+        return response
 
     async def _validate_replace_ids(
         self,

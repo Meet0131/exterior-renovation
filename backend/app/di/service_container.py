@@ -7,9 +7,13 @@ from app.services.estimate_service import EstimateService
 from app.services.image_service import ImageService
 from app.services.image_upload_service import ImageUploadService
 from app.services.material_service import MaterialService
+from app.services.measurement_service import MeasurementService
+from app.services.preview_render_service import PreviewRenderService
 from app.services.project_service import ProjectService
+from app.services.quantity_service import QuantityService
 from app.services.region_service import RegionService
 from app.services.report_service import ReportService
+from app.services.sam3_detection_service import Sam3DetectionService
 
 
 class ServiceContainer:
@@ -28,21 +32,27 @@ class ServiceContainer:
         )
 
     @cached_property
+    def material_service(self) -> MaterialService:
+        return MaterialService()
+
+    @cached_property
     def image_upload_service(self) -> ImageUploadService:
         return ImageUploadService()
+
+    @cached_property
+    def preview_render_service(self) -> PreviewRenderService:
+        return PreviewRenderService(self.material_service)
 
     @cached_property
     def image_service(self) -> ImageService:
         return ImageService(
             self.repository_container.image_repository,
             self.repository_container.project_repository,
+            self.repository_container.region_repository,
             self.image_upload_service,
             self.calibration_service,
+            self.preview_render_service,
         )
-
-    @cached_property
-    def material_service(self) -> MaterialService:
-        return MaterialService()
 
     @cached_property
     def region_service(self) -> RegionService:
@@ -53,16 +63,34 @@ class ServiceContainer:
         )
 
     @cached_property
+    def sam3_detection_service(self) -> Sam3DetectionService:
+        return Sam3DetectionService()
+
+    @cached_property
     def detection_service(self) -> DetectionService:
-        return DetectionService(self.repository_container.image_repository)
+        return DetectionService(
+            self.repository_container.image_repository,
+            self.sam3_detection_service,
+        )
+
+    @cached_property
+    def measurement_service(self) -> MeasurementService:
+        return MeasurementService()
+
+    @cached_property
+    def quantity_service(self) -> QuantityService:
+        return QuantityService()
 
     @cached_property
     def estimate_service(self) -> EstimateService:
         return EstimateService(
+            self.repository_container.project_repository,
             self.repository_container.image_repository,
             self.repository_container.calibration_repository,
             self.repository_container.region_repository,
             self.material_service,
+            self.measurement_service,
+            self.quantity_service,
         )
 
     @cached_property

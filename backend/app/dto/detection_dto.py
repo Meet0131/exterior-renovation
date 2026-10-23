@@ -23,6 +23,7 @@ class DetectedRegionSuggestion(BaseModel):
 class DetectionSnapshot(BaseModel):
     detected_at: datetime
     suggestions: list[DetectedRegionSuggestion]
+    cache_version: int = 0
 
     model_config = ConfigDict(extra="forbid")
 
