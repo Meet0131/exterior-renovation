@@ -1,0 +1,21 @@
+# Environment and secrets
+.env
+backend/.env
+
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local-only docs
+docs/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.log

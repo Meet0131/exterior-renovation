@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+  --paper: #f3f1ea;
+  --surface: #fbfaf6;
+  --ink: #1b211e;
+  --muted: #68716b;
+  --line: #dcd9ce;
+  --pine: #235844;
+  --pine-soft: #e1ece4;
+  --amber: #a85b12;
+  font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.display {
+  font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+}
