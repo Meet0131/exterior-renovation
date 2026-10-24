@@ -602,7 +602,7 @@ export function RegionInspector({
                 className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-pine hover:underline"
               >
                 <Ruler className="size-3.5" aria-hidden="true" />
-                Set the scale for this photo
+                Set the calibration for this photo
               </button>
             </div>
           ) : null}
@@ -745,7 +745,7 @@ export function RegionInspector({
                   </label>
                   {entry.area === null ? (
                     <p className="mt-0.5 pl-6 text-[10px] leading-4 text-muted">
-                      Set a scale or measure this opening first.
+                      Set the calibration or measure this opening first.
                     </p>
                   ) : null}
                 </li>

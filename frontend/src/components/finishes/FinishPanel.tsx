@@ -18,13 +18,6 @@ import {
   getSurfaceLabel,
 } from '../../lib/regions'
 
-export type EstimateChipState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ready'; total: number }
-  | { status: 'unassigned'; message: string }
-  | { status: 'error'; message: string }
-
 interface FinishPanelProps {
   regions: Region[]
   materials: Material[]
@@ -33,7 +26,6 @@ interface FinishPanelProps {
   scaleFtPerPx: number | null
   width: number
   height: number
-  estimate: EstimateChipState
   onSelectRegion: (regionId: string) => void
   onSetMaterial: (region: Region, material: Material) => void
   onSetColor: (region: Region, color: string) => void
@@ -109,20 +101,6 @@ function materialSwatchStyle(
   return style
 }
 
-function estimateLabel(estimate: EstimateChipState): string {
-  if (estimate.status === 'ready') return formatMoney(estimate.total)
-  if (estimate.status === 'loading') return 'Checking…'
-  if (estimate.status === 'unassigned') return 'Needs a material'
-  if (estimate.status === 'error') return 'Unavailable'
-  return '—'
-}
-
-function estimateMessage(estimate: EstimateChipState): string | null {
-  if (estimate.status === 'unassigned') return estimate.message
-  if (estimate.status === 'error') return estimate.message
-  return null
-}
-
 export function FinishPanel({
   regions,
   materials,
@@ -131,7 +109,6 @@ export function FinishPanel({
   scaleFtPerPx,
   width,
   height,
-  estimate,
   onSelectRegion,
   onSetMaterial,
   onSetColor,
@@ -171,49 +148,23 @@ export function FinishPanel({
       selected.color_hex !== null ||
       selected.material_rate_override !== null ||
       selected.labor_rate_override !== null)
-  const message = estimateMessage(estimate)
 
   return (
     <section
       aria-labelledby="materials-panel-heading"
       className="rounded-[2px] border border-line bg-surface p-4 shadow-sheet sm:p-5"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-measure">
-            Materials
-          </p>
-          <h2
-            id="materials-panel-heading"
-            className="display mt-1 text-xl font-semibold tracking-tight"
-          >
-            Pick a material and colour for every surface
-          </h2>
-        </div>
-        <div className="text-right">
-          <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted">
-            Estimate
-          </span>
-          <p
-            aria-live="polite"
-            className={cn(
-              'mt-0.5 font-mono text-sm font-semibold tabular',
-              estimate.status === 'ready'
-                ? 'text-pine'
-                : estimate.status === 'unassigned' ||
-                    estimate.status === 'error'
-                  ? 'text-amber'
-                  : 'text-ink-2',
-            )}
-          >
-            {estimateLabel(estimate)}
-          </p>
-        </div>
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-measure">
+          Materials
+        </p>
+        <h2
+          id="materials-panel-heading"
+          className="display mt-1 text-xl font-semibold tracking-tight"
+        >
+          Choose materials and colours
+        </h2>
       </div>
-
-      {message !== null ? (
-        <p className="mt-2 text-[11px] leading-4 text-muted">{message}</p>
-      ) : null}
 
       <div className="mt-4 max-h-[20rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
         {groups.map((group) => (

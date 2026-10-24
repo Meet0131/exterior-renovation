@@ -443,7 +443,7 @@ export function formatRegionMeasure(
 ): string {
   if (measure.kind === 'reference') return 'Reference'
   if (measure.kind === 'unmeasured') {
-    return region.region_role === 'opening' ? 'Not measured' : 'Set a scale'
+    return region.region_role === 'opening' ? 'Not measured' : 'Set calibration'
   }
   if (measure.kind === 'area') {
     return formatMeasure(measure.value, 'sqft')

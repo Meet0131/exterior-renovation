@@ -1,20 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   Paintbrush,
 } from 'lucide-react'
-import { ApiError, getErrorMessage, isAbortError } from '../api/client'
-import { getImageEstimate } from '../api/estimate'
 import type {
   Material,
   Region,
   RegionPatchPayload,
 } from '../api/types'
 import { FinishPanel } from '../components/finishes/FinishPanel'
-import type { EstimateChipState } from '../components/finishes/FinishPanel'
 import { LivePreview } from '../components/finishes/LivePreview'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -33,28 +28,19 @@ export function FinishesScreen() {
     materialsLoading,
     regions,
     selectedRegionId,
-    saveState,
     selectRegion,
     updateRegion,
     reloadMaterials,
     navigate,
     continueToEstimate,
-    finalizing,
   } = useWorkspace()
-
-  const [estimate, setEstimate] = useState<EstimateChipState>({
-    status: 'idle',
-  })
-  const estimateRequestRef = useRef(0)
 
   const finishRegions = regions.filter(
     (region) => region.region_role === 'finish',
   )
-  const unassigned = finishRegions.filter(
-    (region) => region.material_id === null,
-  )
-  const assignedCount = finishRegions.length - unassigned.length
-  const finishCount = finishRegions.length
+  const assignedCount = finishRegions.filter(
+    (region) => region.material_id !== null,
+  ).length
   const scaleFtPerPx =
     activeImage === null
       ? null
@@ -79,62 +65,6 @@ export function FinishesScreen() {
     if (first !== undefined) selectRegion(first.id)
   }, [regions, selectRegion, selectedRegionId])
 
-  useEffect(() => {
-    if (activeImage === null || finishCount === 0) {
-      estimateRequestRef.current += 1
-      return
-    }
-    if (saveState === 'saving') return
-
-    const image = activeImage
-    estimateRequestRef.current += 1
-    const requestId = estimateRequestRef.current
-    let controller: AbortController | null = null
-
-    const timer = window.setTimeout(() => {
-      controller = new AbortController()
-      setEstimate((previous) =>
-        previous.status === 'ready'
-          ? previous
-          : { status: 'loading' },
-      )
-
-      getImageEstimate(image.id, controller.signal)
-        .then((result) => {
-          if (estimateRequestRef.current !== requestId) return
-          setEstimate({ status: 'ready', total: result.grand_total })
-        })
-        .catch((error) => {
-          if (
-            isAbortError(error) ||
-            estimateRequestRef.current !== requestId
-          ) {
-            return
-          }
-
-          if (error instanceof ApiError && error.status === 422) {
-            setEstimate({
-              status:
-                error.code === 'UNASSIGNED_FINISH'
-                  ? 'unassigned'
-                  : 'error',
-              message: error.message,
-            })
-            return
-          }
-
-          setEstimate({
-            status: 'error',
-            message: getErrorMessage(error),
-          })
-        })
-    }, 450)
-
-    return () => {
-      window.clearTimeout(timer)
-      controller?.abort()
-    }
-  }, [activeImage, finishCount, regions, saveState])
 
   const handleSetMaterial = useCallback(
     (region: Region, material: Material) => {
@@ -242,7 +172,7 @@ export function FinishesScreen() {
           <span
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium',
-              unassigned.length === 0
+              assignedCount === finishRegions.length
                 ? 'border-ok/25 bg-ok-soft text-ok'
                 : 'border-amber/30 bg-amber-soft text-amber',
             )}
@@ -250,7 +180,9 @@ export function FinishesScreen() {
             <span
               className={cn(
                 'size-1.5 rounded-full',
-                unassigned.length === 0 ? 'bg-ok' : 'bg-amber',
+                assignedCount === finishRegions.length
+                  ? 'bg-ok'
+                  : 'bg-amber',
               )}
               aria-hidden="true"
             />
@@ -259,52 +191,7 @@ export function FinishesScreen() {
         </div>
       </header>
 
-      <section
-        aria-live="polite"
-        className={cn(
-          'mt-5 flex items-start gap-3 rounded-[2px] border px-4 py-3',
-          unassigned.length === 0
-            ? 'border-ok/25 bg-ok-soft/50'
-            : 'border-amber/30 bg-amber-soft/55',
-        )}
-      >
-        <span
-          className={cn(
-            'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full',
-            unassigned.length === 0
-              ? 'bg-ok-soft text-ok'
-              : 'bg-amber-soft text-amber',
-          )}
-          aria-hidden="true"
-        >
-          {unassigned.length === 0 ? (
-            <CheckCircle2 className="size-3.5" />
-          ) : (
-            <AlertTriangle className="size-3.5" />
-          )}
-        </span>
-        <div className="min-w-0">
-          <p
-            className={cn(
-              'text-xs font-semibold',
-              unassigned.length === 0 ? 'text-ink-2' : 'text-amber',
-            )}
-          >
-            {unassigned.length === 0
-              ? 'Every marked surface has a material.'
-              : `${unassigned.length} ${
-                  unassigned.length === 1 ? 'surface still needs' : 'surfaces still need'
-                } a material.`}
-          </p>
-          {unassigned.length > 0 ? (
-            <p className="mt-0.5 text-[11px] leading-4 text-muted">
-              {unassigned.map((region) => region.name).join(' · ')}
-            </p>
-          ) : null}
-        </div>
-      </section>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)] lg:gap-8">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.46fr)] lg:gap-8">
         <div className="min-w-0 lg:sticky lg:top-28 lg:self-start">
           <LivePreview
             image={activeImage}
@@ -324,7 +211,6 @@ export function FinishesScreen() {
             scaleFtPerPx={scaleFtPerPx}
             width={activeImage.width}
             height={activeImage.height}
-            estimate={estimate}
             onSelectRegion={selectRegion}
             onSetMaterial={handleSetMaterial}
             onSetColor={handleSetColor}
@@ -349,7 +235,6 @@ export function FinishesScreen() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <Button
             className="shrink-0"
-            loading={finalizing}
             onClick={() => {
               void continueToEstimate()
             }}

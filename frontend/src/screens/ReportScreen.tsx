@@ -163,11 +163,9 @@ export function ReportScreen() {
     calibration,
     regions,
     materials,
-    finalizing,
     finalPreviewStatus,
     finalPreviewUrl,
-    refreshFinalPreview,
-    continueToEstimate,
+    ensureFinalPreview,
     flushSaves,
     copyProjectLink,
     navigate,
@@ -335,15 +333,16 @@ export function ReportScreen() {
     if (imageId === null) return
     if (
       finalPreviewStatus === 'unknown' ||
+      finalPreviewStatus === 'absent' ||
       (finalPreviewStatus === 'fresh' && finalPreviewUrl === null)
     ) {
-      void refreshFinalPreview()
+      void ensureFinalPreview()
     }
   }, [
     imageId,
     finalPreviewStatus,
     finalPreviewUrl,
-    refreshFinalPreview,
+    ensureFinalPreview,
   ])
 
   const problem = useMemo(() => {
@@ -389,18 +388,14 @@ export function ReportScreen() {
   }, [])
 
   const handleRetryPreview = useCallback(() => {
-    void refreshFinalPreview()
-  }, [refreshFinalPreview])
+    void ensureFinalPreview()
+  }, [ensureFinalPreview])
 
   const handleFix = useCallback(() => {
     if (problem === null) return
     selectRegion(problem.region.id)
     void navigate(problem.target)
   }, [navigate, problem, selectRegion])
-
-  const handleContinueToEstimate = useCallback(() => {
-    void continueToEstimate()
-  }, [continueToEstimate])
 
   const handleShare = useCallback(() => {
     void copyProjectLink()
@@ -447,7 +442,7 @@ export function ReportScreen() {
         error.code === 'FINAL_PREVIEW_REQUIRED'
       ) {
         setPdfMissingPreview(true)
-        await refreshFinalPreview()
+        await ensureFinalPreview()
         const statuses = await Promise.all(
           sortedImages.map(async (image) => {
             try {
@@ -466,7 +461,10 @@ export function ReportScreen() {
           }),
         )
         setMissingPhotoIds(
-          statuses.filter((missingId): missingId is string => missingId !== null),
+          statuses.filter(
+            (missingId): missingId is string =>
+              missingId !== null && missingId !== imageId,
+          ),
         )
         setPdfState({ status: 'idle' })
         return
@@ -487,10 +485,11 @@ export function ReportScreen() {
       }
     }
   }, [
+    ensureFinalPreview,
     flushSaves,
+    imageId,
     pdfState.status,
     project,
-    refreshFinalPreview,
     showToast,
     sortedImages,
   ])
@@ -517,10 +516,14 @@ export function ReportScreen() {
     )
   }
 
-  const missingPreview =
-    finalPreviewStatus === 'absent' ||
-    finalPreviewStatus === 'missing-image'
   const imageGone = finalPreviewStatus === 'missing-image'
+  const previewLoading =
+    finalPreviewStatus === 'unknown' ||
+    finalPreviewStatus === 'checking' ||
+    finalPreviewStatus === 'absent' ||
+    (finalPreviewStatus === 'fresh' && finalPreviewUrl === null)
+  const previewReady =
+    finalPreviewStatus === 'fresh' && finalPreviewUrl !== null
   const pdfPreparing = pdfState.status === 'preparing'
   const pdfEstimateError =
     pdfState.status === 'error' &&
@@ -591,6 +594,7 @@ export function ReportScreen() {
                 void handleDownloadPdf()
               }}
               loading={pdfPreparing}
+              disabled={!previewReady}
               icon={<Download className="size-4" aria-hidden="true" />}
             >
               {pdfPreparing ? 'Preparing PDF…' : 'Download PDF'}
@@ -620,7 +624,7 @@ export function ReportScreen() {
           </h2>
           <p className="mt-1 max-w-[60ch] text-sm leading-6 text-ink-2">
             The PDF needs a current final image for every photo. Open each
-            photo below and continue to estimate to create it.
+            photo below to build its final image.
           </p>
           {missingPhotoIds.length > 0 ? (
             <ul className="mt-3 space-y-2">
@@ -647,7 +651,7 @@ export function ReportScreen() {
           ) : (
             <p className="mt-2 text-xs text-muted">
               A final image is missing for one of the photos. Open a photo
-              from the strip and continue to estimate.
+              from the strip to build its final image.
             </p>
           )}
         </section>
@@ -798,7 +802,7 @@ export function ReportScreen() {
         </section>
       ) : null}
 
-      {finalPreviewStatus === 'checking' ? <ReportLoading /> : null}
+      {previewLoading ? <ReportLoading /> : null}
 
       {finalPreviewStatus === 'error' ? (
         <section
@@ -814,7 +818,7 @@ export function ReportScreen() {
                 The final image did not load.
               </h2>
               <p className="mt-1 max-w-[60ch] text-sm leading-6 text-ink-2">
-                The stored report image could not be checked. Retry before
+                The report image could not be built. Retry before
                 downloading the PDF.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -833,39 +837,20 @@ export function ReportScreen() {
         </section>
       ) : null}
 
-      {missingPreview ? (
+      {imageGone ? (
         <div className="mt-6">
           <EmptyState
             icon={<ImageOff className="size-5" strokeWidth={1.8} />}
-            title={
-              imageGone
-                ? 'This photo is no longer available.'
-                : 'The final image is missing.'
-            }
-            description={
-              imageGone
-                ? 'The photo is no longer stored with this project. Start a new project to continue.'
-                : 'Continue to estimate to create the stored final image. The report never shows an older design.'
-            }
+            title="This photo is no longer available."
+            description="The photo is no longer stored with this project. Start a new project to continue."
             action={
-              imageGone ? (
-                <Button onClick={startOver}>Start a new project</Button>
-              ) : (
-                <Button
-                  loading={finalizing}
-                  onClick={handleContinueToEstimate}
-                >
-                  Continue to estimate
-                </Button>
-              )
+              <Button onClick={startOver}>Start a new project</Button>
             }
           />
         </div>
       ) : null}
 
-      {!missingPreview &&
-      finalPreviewStatus === 'fresh' &&
-      finalPreviewUrl !== null ? (
+      {!imageGone && previewReady ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.48fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-6">
             <section className="rounded-[2px] border border-line bg-surface-2 p-3 sm:p-4">
@@ -914,12 +899,12 @@ export function ReportScreen() {
                   <div className="aspect-[4/3] bg-surface-2">
                     <img
                       src={finalPreviewUrl}
-                      alt="Proposed materials, rendered by the server"
+                      alt="Proposed design"
                       className="h-full w-full object-contain"
                     />
                   </div>
                   <figcaption className="flex items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-muted">
-                    <span>Proposed materials (server render)</span>
+                    <span>Proposed design</span>
                     <span className="rounded-full border border-line px-1.5 py-0.5 text-[10px]">
                       Stored
                     </span>
@@ -1196,6 +1181,7 @@ export function ReportScreen() {
                 void handleDownloadPdf()
               }}
               loading={pdfPreparing}
+              disabled={!previewReady}
               icon={<Download className="size-4" aria-hidden="true" />}
             >
               {pdfPreparing ? 'Preparing PDF…' : 'Download PDF'}

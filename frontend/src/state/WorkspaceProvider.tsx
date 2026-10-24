@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import {
   ApiError,
@@ -127,7 +133,7 @@ function getStepBlocker(target: Step, snapshot: StepSnapshot): string | null {
     return 'Mark at least one region before moving on.'
   }
   if (snapshot.calibration === null) {
-    return 'Set the scale before moving on.'
+    return 'Set the calibration before moving on.'
   }
   if (target === 'materials') return null
 
@@ -137,9 +143,6 @@ function getStepBlocker(target: Step, snapshot: StepSnapshot): string | null {
   }
   if (finishes.some((region) => region.material_id === null)) {
     return 'Choose a material for every surface before moving on.'
-  }
-  if (snapshot.visualDirty || snapshot.finalPreviewStatus !== 'fresh') {
-    return 'Continue from Materials to render the final image first.'
   }
   return null
 }
@@ -160,9 +163,6 @@ function resolveStep(
     finishes.length === 0 ||
     finishes.some((region) => region.material_id === null)
   ) {
-    return 'materials'
-  }
-  if (snapshot.visualDirty || snapshot.finalPreviewStatus !== 'fresh') {
     return 'materials'
   }
   return 'estimate'
@@ -275,7 +275,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   })
   const stateRef = useRef(state)
-  useEffect(() => {
+  useLayoutEffect(() => {
     stateRef.current = state
   }, [state])
 
@@ -289,6 +289,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const invalidLinkRef = useRef(false)
   const navigationRef = useRef(false)
   const continueToEstimateRef = useRef<() => Promise<boolean>>(async () => false)
+  const ensureFinalPreviewRef = useRef<
+    () => Promise<FinalPreviewStatus>
+  >(async () => 'unknown')
+  const ensureFinalPreviewPromiseRef = useRef<{
+    imageId: string
+    promise: Promise<FinalPreviewStatus>
+  } | null>(null)
+  const finalizeRunRef = useRef(0)
   const toastTimerRef = useRef<number | null>(null)
   const toastIdRef = useRef(0)
   const bannerIdRef = useRef(0)
@@ -477,15 +485,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [revokeFinalPreviewUrl])
 
   const replaceRegionsState = useCallback(
-    (nextRegions: Region[], preferredId: string | null = null) => {
+    (nextRegions: Region[], preferredId?: string | null) => {
       const normalized = nextRegions.map(normalizeRegion)
       regionsRef.current = normalized
-      const currentSelected = preferredId ?? selectedRegionIdRef.current
-      const nextSelected = normalized.some(
-        (region) => region.id === currentSelected,
-      )
-        ? currentSelected
-        : (normalized[0]?.id ?? null)
+      const currentSelected =
+        preferredId === undefined
+          ? selectedRegionIdRef.current
+          : preferredId
+      const nextSelected =
+        currentSelected !== null &&
+        normalized.some((region) => region.id === currentSelected)
+          ? currentSelected
+          : preferredId === undefined
+            ? (normalized[0]?.id ?? null)
+            : null
       selectedRegionIdRef.current = nextSelected
       setState((previous) => ({
         ...previous,
@@ -2076,6 +2089,119 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }))
   }, [revokeFinalPreviewUrl])
 
+  const ensureFinalPreview = useCallback(async (): Promise<FinalPreviewStatus> => {
+    const image = stateRef.current.activeImage
+    if (image === null) return 'unknown'
+
+    const inFlight = ensureFinalPreviewPromiseRef.current
+    if (inFlight?.imageId === image.id) return inFlight.promise
+
+    const promise = (async (): Promise<FinalPreviewStatus> => {
+      let status = stateRef.current.finalPreviewStatus
+      const activeImageChanged = () =>
+        stateRef.current.activeImage?.id !== image.id
+
+      if (status === 'unknown') {
+        status = await refreshFinalPreview()
+        if (activeImageChanged()) return 'unknown'
+        if (status !== 'absent') return status
+      }
+
+      if (status === 'missing-image' || status === 'checking') {
+        return status
+      }
+
+      if (status === 'fresh' && !stateRef.current.visualDirty) {
+        if (stateRef.current.finalPreviewUrl !== null) return 'fresh'
+        const refreshed = await refreshFinalPreview()
+        if (activeImageChanged()) return 'unknown'
+        if (refreshed !== 'absent') return refreshed
+      }
+
+      const runId = ++finalizeRunRef.current
+      revokeFinalPreviewUrl()
+      setState((previous) => ({
+        ...previous,
+        finalizing: true,
+        finalPreviewStatus: 'checking',
+        finalPreviewBlob: null,
+        finalPreviewUrl: null,
+      }))
+
+      try {
+        await finalizeImage(image.id)
+      } catch (error) {
+        if (activeImageChanged()) return 'unknown'
+        const nextStatus: FinalPreviewStatus =
+          error instanceof ApiError && error.code === 'IMAGE_NOT_FOUND'
+            ? 'missing-image'
+            : 'error'
+        setState((previous) => ({
+          ...previous,
+          finalPreviewStatus: nextStatus,
+        }))
+        showBanner({
+          tone: 'error',
+          title: 'The final image could not be rendered',
+          message: getErrorMessage(error),
+          actionLabel: 'Retry',
+          action: () => {
+            void ensureFinalPreviewRef.current()
+          },
+        })
+        return nextStatus
+      } finally {
+        if (finalizeRunRef.current === runId) {
+          setState((previous) => ({ ...previous, finalizing: false }))
+        }
+      }
+
+      if (activeImageChanged()) return 'unknown'
+
+      setState((previous) => ({ ...previous, visualDirty: false }))
+
+      try {
+        const blob = await getFinalPreview(image.id)
+        if (activeImageChanged()) return 'unknown'
+        setFinalPreviewBlob(blob)
+        return 'fresh'
+      } catch (error) {
+        if (activeImageChanged()) return 'unknown'
+        const nextStatus: FinalPreviewStatus =
+          error instanceof ApiError && error.code === 'IMAGE_NOT_FOUND'
+            ? 'missing-image'
+            : 'error'
+        setState((previous) => ({
+          ...previous,
+          finalPreviewStatus: nextStatus,
+        }))
+        showBanner({
+          tone: 'error',
+          title: 'The final image could not be loaded',
+          message: getErrorMessage(error),
+          actionLabel: 'Retry',
+          action: () => {
+            void ensureFinalPreviewRef.current()
+          },
+        })
+        return nextStatus
+      }
+    })()
+
+    ensureFinalPreviewPromiseRef.current = { imageId: image.id, promise }
+    try {
+      return await promise
+    } finally {
+      if (ensureFinalPreviewPromiseRef.current?.promise === promise) {
+        ensureFinalPreviewPromiseRef.current = null
+      }
+    }
+  }, [refreshFinalPreview, revokeFinalPreviewUrl, setFinalPreviewBlob, showBanner])
+
+  useEffect(() => {
+    ensureFinalPreviewRef.current = ensureFinalPreview
+  }, [ensureFinalPreview])
+
   const selectImage = useCallback(
     async (imageId: string): Promise<boolean> => {
       if (navigationRef.current) return false
@@ -2233,7 +2359,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             tone: 'warning',
             title: 'The scale did not load',
             message:
-              'This photo opened without its scale. Set the scale again if the measurements look wrong.',
+              'This photo opened without its calibration. Set the calibration again if the measurements look wrong.',
           })
         }
         return true
@@ -2377,7 +2503,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return false
     }
     if (stateRef.current.calibration === null) {
-      showToast('Set the scale before estimating.', 'info')
+      showToast('Set the calibration before estimating.', 'info')
       return false
     }
 
@@ -2388,7 +2514,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         showBanner({
           tone: 'error',
           title: 'Changes are not saved',
-          message: 'Retry the save before rendering the final image.',
+          message: 'Retry the save before continuing.',
           actionLabel: 'Retry',
           action: () => {
             void continueToEstimateRef.current()
@@ -2427,61 +2553,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      let status = latest.finalPreviewStatus
-      if (status === 'unknown') {
-        status = await refreshFinalPreview()
-      }
-
-      if (status === 'missing-image') {
-        showBanner({
-          tone: 'error',
-          title: 'The photo is no longer available',
-          message:
-            'Start a new project or reopen the project link to continue.',
-        })
-        return false
-      }
-      if (status === 'error' || status === 'checking') return false
-
-      if (status !== 'fresh' || stateRef.current.visualDirty) {
-        setState((previous) => ({ ...previous, finalizing: true }))
-        try {
-          await finalizeImage(image.id)
-        } catch (error) {
-          showBanner({
-            tone: 'error',
-            title: 'The final image could not be rendered',
-            message: getErrorMessage(error),
-            actionLabel: 'Retry',
-            action: () => {
-              void continueToEstimateRef.current()
-            },
-          })
-          return false
-        } finally {
-          setState((previous) => ({ ...previous, finalizing: false }))
-        }
-
-        if (stateRef.current.activeImage?.id !== image.id) return false
-
-        setState((previous) => ({
-          ...previous,
-          finalPreviewStatus: 'fresh',
-          visualDirty: false,
-          finalPreviewBlob: null,
-          finalPreviewUrl: null,
-        }))
-
-        try {
-          const blob = await getFinalPreview(image.id)
-          if (stateRef.current.activeImage?.id === image.id) {
-            setFinalPreviewBlob(blob)
-          }
-        } catch {
-          // The render succeeded; the report can fetch the stored image.
-        }
-      }
-
       pushStepUrl('estimate')
       setState((previous) => ({ ...previous, step: 'estimate' }))
       return true
@@ -2490,9 +2561,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [
     flushSaves,
-    refreshFinalPreview,
     selectRegion,
-    setFinalPreviewBlob,
     showBanner,
     showToast,
   ])
@@ -2634,6 +2703,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         reloadMaterials,
         refreshRegions,
         refreshFinalPreview,
+        ensureFinalPreview,
         selectRegion,
         updateRegion,
         updateRegions,

@@ -106,7 +106,7 @@ export function NewRegionForm({
         )
   const measureText =
     measure === null
-      ? 'Set a scale to see the live measure.'
+      ? 'Set the calibration to see the live measure.'
       : `${formatMeasure(measure, geometryType === 'polygon' ? 'sqft' : 'rft')} once added`
 
   const handleSurfaceChange = (nextSurface: SurfaceType) => {

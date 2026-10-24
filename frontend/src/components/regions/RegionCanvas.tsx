@@ -34,6 +34,7 @@ interface RegionCanvasProps {
   calibration: Calibration | null
   scaleFtPerPx: number | null
   calibrationDraft: GeometryPoint[] | null
+  calibrationActive: boolean
   drawingTool: GeometryType | null
   draftGeometryType: GeometryType | null
   drawPoints: GeometryPoint[]
@@ -49,11 +50,16 @@ interface RegionCanvasProps {
   onCalibrationPoint: (point: GeometryPoint) => void
   onMoveCalibrationPoint: (index: 0 | 1, point: GeometryPoint) => void
   onCalibrationDragEnd: () => void
+  onSelectCalibration: () => void
   onAddDrawPoint: (point: GeometryPoint) => void
   onFinishDraw: () => void
   onPendingPointChange: (points: GeometryPoint[]) => void
   onRegionGeometryChange: (
     regionId: string,
+    points: GeometryPoint[],
+  ) => void
+  onSuggestionGeometryChange: (
+    suggestionKey: string,
     points: GeometryPoint[],
   ) => void
 }
@@ -64,12 +70,21 @@ interface CalibrationDrag {
 }
 
 interface VertexDrag {
-  regionId: string
+  kind: 'region' | 'suggestion'
+  id: string
   geometryType: GeometryType
   index: number
   pointerId: number
   points: GeometryPoint[]
   moved: boolean
+}
+
+interface VertexTarget {
+  kind: 'region' | 'suggestion'
+  id: string
+  name: string
+  geometryType: GeometryType
+  points: GeometryPoint[]
 }
 
 interface PendingDrag {
@@ -111,6 +126,7 @@ export function RegionCanvas({
   calibration,
   scaleFtPerPx,
   calibrationDraft,
+  calibrationActive,
   drawingTool,
   draftGeometryType,
   drawPoints,
@@ -126,14 +142,17 @@ export function RegionCanvas({
   onCalibrationPoint,
   onMoveCalibrationPoint,
   onCalibrationDragEnd,
+  onSelectCalibration,
   onAddDrawPoint,
   onFinishDraw,
   onPendingPointChange,
   onRegionGeometryChange,
+  onSuggestionGeometryChange,
 }: RegionCanvasProps) {
   const rawPatternId = useId()
   const hatchId = `opening-hatch-${rawPatternId.replace(/[^a-zA-Z0-9_-]/g, '')}`
   const glowId = `selected-glow-${rawPatternId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+  const calibrationGlowId = `calibration-glow-${rawPatternId.replace(/[^a-zA-Z0-9_-]/g, '')}`
   const dragRef = useRef<CalibrationDrag | null>(null)
   const vertexDragRef = useRef<VertexDrag | null>(null)
   const pendingDragRef = useRef<PendingDrag | null>(null)
@@ -145,7 +164,8 @@ export function RegionCanvas({
   const [pendingDrag, setPendingDrag] = useState<PendingDrag | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [selectedVertex, setSelectedVertex] = useState<{
-    regionId: string
+    kind: 'region' | 'suggestion'
+    id: string
     index: number
   } | null>(null)
   const [vertexError, setVertexError] = useState<string | null>(null)
@@ -168,7 +188,8 @@ export function RegionCanvas({
     selectedRegion === null
       ? null
       : vertexDrag !== null &&
-          vertexDrag.regionId === selectedRegion.id
+          vertexDrag.kind === 'region' &&
+          vertexDrag.id === selectedRegion.id
         ? vertexDrag.points
         : selectedRegion.geometry_json
   const pendingDisplayPoints =
@@ -192,6 +213,38 @@ export function RegionCanvas({
       return firstActive - secondActive
     },
   )
+  const activeSuggestion =
+    activeSuggestionKey === null
+      ? null
+      : (visibleSuggestions.find(
+          (suggestion) => suggestion.key === activeSuggestionKey,
+        ) ?? null)
+  const activeSuggestionPoints =
+    activeSuggestion === null
+      ? null
+      : vertexDrag !== null &&
+          vertexDrag.kind === 'suggestion' &&
+          vertexDrag.id === activeSuggestion.key
+        ? vertexDrag.points
+        : activeSuggestion.geometry_json
+  const editTarget: VertexTarget | null =
+    selectedRegion !== null && selectedPoints !== null
+      ? {
+          kind: 'region',
+          id: selectedRegion.id,
+          name: selectedRegion.name,
+          geometryType: selectedRegion.geometry_type,
+          points: selectedPoints,
+        }
+      : activeSuggestion !== null && activeSuggestionPoints !== null
+        ? {
+            kind: 'suggestion',
+            id: activeSuggestion.key,
+            name: activeSuggestion.name,
+            geometryType: activeSuggestion.geometry_type,
+            points: activeSuggestionPoints,
+          }
+        : null
   const previewPointString = previewPoints
     .map(
       (point) =>
@@ -329,8 +382,19 @@ export function RegionCanvas({
     })
   }
 
+  const applyGeometryChange = (
+    target: Pick<VertexTarget, 'kind' | 'id'>,
+    points: GeometryPoint[],
+  ) => {
+    if (target.kind === 'region') {
+      onRegionGeometryChange(target.id, points)
+    } else {
+      onSuggestionGeometryChange(target.id, points)
+    }
+  }
+
   const startVertexDrag = (
-    region: Region,
+    target: VertexTarget,
     index: number,
     event: ReactPointerEvent<HTMLButtonElement>,
   ) => {
@@ -340,16 +404,17 @@ export function RegionCanvas({
     event.currentTarget.setPointerCapture(event.pointerId)
 
     const drag: VertexDrag = {
-      regionId: region.id,
-      geometryType: region.geometry_type,
+      kind: target.kind,
+      id: target.id,
+      geometryType: target.geometryType,
       index,
       pointerId: event.pointerId,
-      points: region.geometry_json.map((point) => ({ ...point })),
+      points: target.points.map((point) => ({ ...point })),
       moved: false,
     }
     vertexDragRef.current = drag
     setVertexDrag(drag)
-    setSelectedVertex({ regionId: region.id, index })
+    setSelectedVertex({ kind: target.kind, id: target.id, index })
     setVertexError(null)
   }
 
@@ -400,29 +465,29 @@ export function RegionCanvas({
     }
 
     setVertexError(null)
-    onRegionGeometryChange(drag.regionId, drag.points)
+    applyGeometryChange(drag, drag.points)
   }
 
-  const removeVertex = (region: Region, index: number) => {
+  const removeVertex = (target: VertexTarget, index: number) => {
     const minimum =
-      region.geometry_type === 'polygon'
+      target.geometryType === 'polygon'
         ? MIN_POLYGON_POINTS
         : MIN_LINE_POINTS
 
-    if (region.geometry_json.length <= minimum) {
+    if (target.points.length <= minimum) {
       setVertexError(
-        region.geometry_type === 'polygon'
+        target.geometryType === 'polygon'
           ? 'A polygon needs at least three points.'
           : 'A line needs at least two points.',
       )
       return
     }
 
-    const nextPoints = region.geometry_json.filter(
+    const nextPoints = target.points.filter(
       (_, pointIndex) => pointIndex !== index,
     )
     const problem = computeRegionGeometryProblem(
-      region.geometry_type,
+      target.geometryType,
       nextPoints,
     )
     if (problem !== null) {
@@ -432,11 +497,11 @@ export function RegionCanvas({
 
     setSelectedVertex(null)
     setVertexError(null)
-    onRegionGeometryChange(region.id, nextPoints)
+    applyGeometryChange(target, nextPoints)
   }
 
-  const insertVertex = (region: Region, segmentIndex: number) => {
-    const points = region.geometry_json
+  const insertVertex = (target: VertexTarget, segmentIndex: number) => {
+    const points = target.points
     const start = points[segmentIndex]
     const end = points[(segmentIndex + 1) % points.length]
     const midpoint = {
@@ -449,7 +514,7 @@ export function RegionCanvas({
       ...points.slice(segmentIndex + 1),
     ]
     const problem = computeRegionGeometryProblem(
-      region.geometry_type,
+      target.geometryType,
       nextPoints,
     )
     if (problem !== null) {
@@ -458,15 +523,16 @@ export function RegionCanvas({
     }
 
     setSelectedVertex({
-      regionId: region.id,
+      kind: target.kind,
+      id: target.id,
       index: segmentIndex + 1,
     })
     setVertexError(null)
-    onRegionGeometryChange(region.id, nextPoints)
+    applyGeometryChange(target, nextPoints)
   }
 
   const handleVertexKeyDown = (
-    region: Region,
+    target: VertexTarget,
     index: number,
     event: ReactKeyboardEvent<HTMLButtonElement>,
   ) => {
@@ -488,12 +554,13 @@ export function RegionCanvas({
 
     if (
       (event.key === 'Delete' || event.key === 'Backspace') &&
-      selectedVertex?.regionId === region.id &&
+      selectedVertex?.kind === target.kind &&
+      selectedVertex.id === target.id &&
       selectedVertex.index === index
     ) {
       event.preventDefault()
       event.stopPropagation()
-      removeVertex(region, index)
+      removeVertex(target, index)
     }
   }
 
@@ -665,6 +732,21 @@ export function RegionCanvas({
                 floodOpacity="0.95"
               />
             </filter>
+            <filter
+              id={calibrationGlowId}
+              x="-20%"
+              y="-20%"
+              width="140%"
+              height="140%"
+            >
+              <feDropShadow
+                dx="0"
+                dy="0"
+                stdDeviation="5"
+                floodColor="#ff2d95"
+                floodOpacity="1"
+              />
+            </filter>
             <pattern
               id={hatchId}
               width="14"
@@ -687,7 +769,9 @@ export function RegionCanvas({
             const selected = region.id === selectedRegionId
             const color = getRegionDisplayColor(region)
             const regionPoints =
-              vertexDrag !== null && vertexDrag.regionId === region.id
+              vertexDrag !== null &&
+              vertexDrag.kind === 'region' &&
+              vertexDrag.id === region.id
                 ? vertexDrag.points
                 : region.geometry_json
             const shapePoints = toPixels(
@@ -844,8 +928,14 @@ export function RegionCanvas({
 
           {orderedSuggestions.map((suggestion) => {
             const active = suggestion.key === activeSuggestionKey
+            const displayPoints =
+              vertexDrag !== null &&
+              vertexDrag.kind === 'suggestion' &&
+              vertexDrag.id === suggestion.key
+                ? vertexDrag.points
+                : suggestion.geometry_json
             const shapePoints = toPixels(
-              suggestion.geometry_json,
+              displayPoints,
               width,
               height,
             )
@@ -1013,31 +1103,69 @@ export function RegionCanvas({
           ) : null}
 
           {calibrationPoints !== null ? (
-            <g
-              opacity={drawingScale ? 0.38 : 1}
-              pointerEvents="none"
-            >
+            <g pointerEvents="none">
+              {calibrationActive ? (
+                <line
+                  x1={calibrationPoints[0].x * width}
+                  y1={calibrationPoints[0].y * height}
+                  x2={calibrationPoints[1].x * width}
+                  y2={calibrationPoints[1].y * height}
+                  stroke="#ffffff"
+                  strokeWidth="10"
+                  vectorEffect="non-scaling-stroke"
+                  opacity="0.92"
+                />
+              ) : null}
               <line
                 x1={calibrationPoints[0].x * width}
                 y1={calibrationPoints[0].y * height}
                 x2={calibrationPoints[1].x * width}
                 y2={calibrationPoints[1].y * height}
-                stroke="var(--color-surface)"
-                strokeWidth="6"
+                className="stroke-calibration"
+                strokeWidth={calibrationActive ? 9 : 6}
                 vectorEffect="non-scaling-stroke"
-                opacity="0.8"
+                opacity={drawingScale ? 0.2 : calibrationActive ? 0.4 : 0.25}
+                filter={`url(#${calibrationGlowId})`}
               />
               <line
                 x1={calibrationPoints[0].x * width}
                 y1={calibrationPoints[0].y * height}
                 x2={calibrationPoints[1].x * width}
                 y2={calibrationPoints[1].y * height}
-                className="stroke-measure"
-                strokeWidth="2.5"
-                strokeDasharray="7 5"
+                className="stroke-calibration"
+                strokeWidth={calibrationActive ? 3.6 : 2.6}
                 vectorEffect="non-scaling-stroke"
+                opacity={drawingScale ? 0.38 : 1}
+              />
+              <line
+                x1={calibrationPoints[0].x * width}
+                y1={calibrationPoints[0].y * height}
+                x2={calibrationPoints[1].x * width}
+                y2={calibrationPoints[1].y * height}
+                className="stroke-calibration-core"
+                strokeWidth={calibrationActive ? 1.3 : 0.9}
+                vectorEffect="non-scaling-stroke"
+                opacity={drawingScale ? 0.4 : calibrationActive ? 1 : 0.85}
               />
             </g>
+          ) : null}
+
+          {calibrationPoints !== null && !drawingScale ? (
+            <line
+              x1={calibrationPoints[0].x * width}
+              y1={calibrationPoints[0].y * height}
+              x2={calibrationPoints[1].x * width}
+              y2={calibrationPoints[1].y * height}
+              stroke="transparent"
+              strokeWidth="20"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="stroke"
+              className="cursor-pointer"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelectCalibration()
+              }}
+            />
           ) : null}
 
           {draftPoints.length === 2 ? (
@@ -1057,8 +1185,18 @@ export function RegionCanvas({
                 y1={draftPoints[0].y * height}
                 x2={draftPoints[1].x * width}
                 y2={draftPoints[1].y * height}
-                className="stroke-measure"
+                className="stroke-calibration"
                 strokeWidth="3"
+                vectorEffect="non-scaling-stroke"
+                filter={`url(#${calibrationGlowId})`}
+              />
+              <line
+                x1={draftPoints[0].x * width}
+                y1={draftPoints[0].y * height}
+                x2={draftPoints[1].x * width}
+                y2={draftPoints[1].y * height}
+                className="stroke-calibration-core"
+                strokeWidth="1"
                 vectorEffect="non-scaling-stroke"
               />
             </g>
@@ -1095,11 +1233,12 @@ export function RegionCanvas({
           ) : null}
         </svg>
 
-        {calibrationPoints !== null &&
+        {calibrationActive &&
+        calibrationPoints !== null &&
         calibrationMidpoint !== null &&
         !drawingScale ? (
           <div
-            className="pointer-events-none absolute z-10 rounded-[2px] border border-measure/30 bg-measure-soft/95 px-2 py-1 text-[10px] font-medium text-measure shadow-sm backdrop-blur-sm"
+            className="pointer-events-none absolute z-10 rounded-[2px] border border-calibration/40 bg-calibration-soft/95 px-2 py-1 text-[10px] font-medium text-calibration-deep shadow-sm backdrop-blur-sm"
             style={{
               left: `${clampLabelValue(calibrationMidpoint.x) * 100}%`,
               top: `${clampLabelValue(calibrationMidpoint.y) * 100}%`,
@@ -1115,7 +1254,7 @@ export function RegionCanvas({
 
         {draftMidpoint !== null ? (
           <div
-            className="pointer-events-none absolute z-10 rounded-[2px] border border-measure/30 bg-measure-soft/95 px-2 py-1 text-[10px] font-medium text-measure shadow-sm backdrop-blur-sm"
+            className="pointer-events-none absolute z-10 rounded-[2px] border border-calibration/40 bg-calibration-soft/95 px-2 py-1 text-[10px] font-medium text-calibration-deep shadow-sm backdrop-blur-sm"
             style={{
               left: `${clampLabelValue(draftMidpoint.x) * 100}%`,
               top: `${clampLabelValue(draftMidpoint.y) * 100}%`,
@@ -1129,16 +1268,18 @@ export function RegionCanvas({
           </div>
         ) : null}
 
-        {calibrationPoints !== null && !drawingScale
+        {calibrationActive &&
+        calibrationPoints !== null &&
+        !drawingScale
           ? ([0, 1] as const).map((index) => {
               const point = calibrationPoints[index]
               return (
                 <button
                   key={index}
                   type="button"
-                  aria-label={`Move scale point ${index + 1}`}
-                  aria-describedby="scale-handle-hint"
-                  title={`Move scale point ${index + 1}`}
+                  aria-label={`Move calibration point ${index + 1}`}
+                  aria-describedby="calibration-handle-hint"
+                  title={`Move calibration point ${index + 1}`}
                   onPointerDown={(event) =>
                     handleDragStart(index, event)
                   }
@@ -1148,7 +1289,7 @@ export function RegionCanvas({
                   onKeyDown={(event) =>
                     handleHandleKeyDown(index, event)
                   }
-                  className="absolute z-20 size-6 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-surface bg-measure shadow-[0_0_0_1px_var(--color-measure)] transition-transform hover:scale-110 focus-visible:scale-110"
+                  className="absolute z-20 size-6 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-surface bg-calibration shadow-[0_0_0_1px_var(--color-calibration-deep),0_0_10px_var(--color-calibration)] transition-transform hover:scale-110 focus-visible:scale-110"
                   style={{
                     left: `${point.x * 100}%`,
                     top: `${point.y * 100}%`,
@@ -1158,7 +1299,7 @@ export function RegionCanvas({
             })
           : null}
 
-        <span id="scale-handle-hint" className="sr-only">
+        <span id="calibration-handle-hint" className="sr-only">
           Use the arrow keys to move this point. Hold Shift for a larger
           step.
         </span>
@@ -1166,7 +1307,7 @@ export function RegionCanvas({
         {draftPoints.map((point, index) => (
           <span
             key={`draft-${index}`}
-            className="pointer-events-none absolute z-20 size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-measure shadow-[0_0_0_1px_var(--color-measure)]"
+            className="pointer-events-none absolute z-20 size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-calibration shadow-[0_0_0_1px_var(--color-calibration-deep),0_0_10px_var(--color-calibration)]"
             style={{
               left: `${point.x * 100}%`,
               top: `${point.y * 100}%`,
@@ -1261,33 +1402,31 @@ export function RegionCanvas({
           />
         ) : null}
 
-        {!interactionLocked &&
-        selectedRegion !== null &&
-        selectedPoints !== null ? (
+        {!interactionLocked && editTarget !== null ? (
           <>
             {vertexDrag === null
               ? Array.from(
                   {
                     length:
-                      selectedRegion.geometry_type === 'polygon'
-                        ? selectedPoints.length
-                        : selectedPoints.length - 1,
+                      editTarget.geometryType === 'polygon'
+                        ? editTarget.points.length
+                        : editTarget.points.length - 1,
                   },
                   (_, segmentIndex) => {
-                    const start = selectedPoints[segmentIndex]
+                    const start = editTarget.points[segmentIndex]
                     const end =
-                      selectedPoints[
-                        (segmentIndex + 1) % selectedPoints.length
+                      editTarget.points[
+                        (segmentIndex + 1) % editTarget.points.length
                       ]
                     return (
                       <button
-                        key={`midpoint-${segmentIndex}`}
+                        key={`${editTarget.kind}-${editTarget.id}-midpoint-${segmentIndex}`}
                         type="button"
                         aria-label={`Insert a point after point ${segmentIndex + 1}`}
                         title="Insert a point here"
                         onClick={(event) => {
                           event.stopPropagation()
-                          insertVertex(selectedRegion, segmentIndex)
+                          insertVertex(editTarget, segmentIndex)
                         }}
                         className="absolute z-20 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dashed border-pine/70 bg-surface/95 text-[9px] font-bold leading-none text-pine shadow-sm transition-colors hover:bg-pine-soft [@media(pointer:coarse)]:size-5"
                         style={{
@@ -1302,31 +1441,33 @@ export function RegionCanvas({
                 )
               : null}
 
-            {selectedPoints.map((point, index) => (
+            {editTarget.points.map((point, index) => (
               <button
-                key={`vertex-${index}`}
+                key={`${editTarget.kind}-${editTarget.id}-vertex-${index}`}
                 type="button"
-                aria-label={`Point ${index + 1} of ${selectedRegion.name}`}
+                aria-label={`Point ${index + 1} of ${editTarget.name}`}
                 aria-describedby="region-vertex-hint"
                 title={`Point ${index + 1}. Drag to move, or press Delete to remove.`}
                 onPointerDown={(event) =>
-                  startVertexDrag(selectedRegion, index, event)
+                  startVertexDrag(editTarget, index, event)
                 }
                 onPointerMove={moveVertexDrag}
                 onPointerUp={endVertexDrag}
                 onPointerCancel={endVertexDrag}
                 onFocus={() =>
                   setSelectedVertex({
-                    regionId: selectedRegion.id,
+                    kind: editTarget.kind,
+                    id: editTarget.id,
                     index,
                   })
                 }
                 onKeyDown={(event) =>
-                  handleVertexKeyDown(selectedRegion, index, event)
+                  handleVertexKeyDown(editTarget, index, event)
                 }
                 className={cn(
                   'absolute z-30 size-4 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-surface shadow-[0_0_0_1px_var(--color-pine)] transition-transform hover:scale-110 focus-visible:scale-110 [@media(pointer:coarse)]:size-6',
-                  selectedVertex?.regionId === selectedRegion.id &&
+                  selectedVertex?.kind === editTarget.kind &&
+                    selectedVertex.id === editTarget.id &&
                     selectedVertex.index === index
                     ? 'bg-measure shadow-[0_0_0_2px_var(--color-measure)]'
                     : 'bg-pine',

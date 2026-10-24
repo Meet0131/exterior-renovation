@@ -96,6 +96,7 @@ export function RegionsScreen() {
   const [calibrationDraft, setCalibrationDraft] = useState<
     GeometryPoint[] | null
   >(null)
+  const [calibrationActive, setCalibrationActive] = useState(false)
   const [deleteRegionId, setDeleteRegionId] = useState<string | null>(
     null,
   )
@@ -176,7 +177,7 @@ export function RegionsScreen() {
   if (totals.areaTotal !== null) {
     summaryParts.push(formatMeasure(totals.areaTotal, 'sqft'))
   } else if (totals.areaCount > 0) {
-    summaryParts.push('set a scale')
+    summaryParts.push('set the calibration')
   }
   if (totals.railingCount > 0) {
     if (totals.railingLength !== null) {
@@ -217,11 +218,13 @@ export function RegionsScreen() {
   const toolHint =
     calibrationDraft !== null
       ? 'Click two points on something with a known length, then type its real length.'
-      : drawingTool === 'polygon'
-        ? 'Click points around the surface. Close the shape by tapping the first point or Finish shape.'
-        : drawingTool === 'line'
-          ? 'Click along the railing, point by point. Tap Finish line when you reach the end.'
-          : 'Click a region on the photo to select it. Drag any point to adjust its shape.'
+      : calibrationActive && calibration !== null
+        ? 'Drag either point on the photo to adjust the calibration line.'
+        : drawingTool === 'polygon'
+          ? 'Click points around the surface. Close the shape by tapping the first point or Finish shape.'
+          : drawingTool === 'line'
+            ? 'Click along the railing, point by point. Tap Finish line when you reach the end.'
+            : 'Click a region on the photo to select it. Drag any point to adjust its shape.'
 
   const beginCalibration = useCallback(() => {
     setPendingShape(null)
@@ -231,7 +234,11 @@ export function RegionsScreen() {
     setDrawError(null)
     setTool('select')
     setShowToolHint(true)
-    setCalibrationDraft([])
+    setActiveSuggestionKey(null)
+    setSurfaceNotice(null)
+    selectRegion(null)
+    setCalibrationActive(true)
+    setCalibrationDraft(calibration === null ? [] : null)
     window.requestAnimationFrame(() => {
       canvasRef.current?.scrollIntoView({
         behavior: window.matchMedia(
@@ -243,7 +250,14 @@ export function RegionsScreen() {
       })
       canvasRef.current?.focus({ preventScroll: true })
     })
-  }, [])
+  }, [calibration, selectRegion])
+
+  const handleSelectCalibration = useCallback(() => {
+    setActiveSuggestionKey(null)
+    setSurfaceNotice(null)
+    selectRegion(null)
+    setCalibrationActive(true)
+  }, [selectRegion])
 
   const cancelDetection = useCallback(() => {
     detectionRequestRef.current += 1
@@ -265,6 +279,7 @@ export function RegionsScreen() {
     setSuggestionLoading(true)
     setSuggestionError(null)
     setSuggestionUnavailable(false)
+    setCalibrationActive(false)
 
     try {
       const response = await detectRegions(
@@ -284,7 +299,12 @@ export function RegionsScreen() {
         )
 
       setSuggestions(items)
-      setActiveSuggestionKey(items[0]?.key ?? null)
+      const firstSuggestionKey = items[0]?.key ?? null
+      setActiveSuggestionKey(firstSuggestionKey)
+      if (firstSuggestionKey !== null) {
+        setSurfaceNotice(null)
+        selectRegion(null)
+      }
       setSuggestionTruncated(response.truncated && !response.cached)
 
       if (items.length === 0) {
@@ -311,7 +331,7 @@ export function RegionsScreen() {
         }
       }
     }
-  }, [activeImage, showToast])
+  }, [activeImage, selectRegion, showToast])
 
   useEffect(() => {
     return () => {
@@ -337,6 +357,7 @@ export function RegionsScreen() {
     setDrawPoints([])
     setDrawError(null)
     setCalibrationDraft(null)
+    setCalibrationActive(false)
     setTool(nextTool)
     setShowToolHint(true)
   }, [])
@@ -350,6 +371,7 @@ export function RegionsScreen() {
     setPendingEditKey(null)
     setPendingShapeError(null)
     setCalibrationDraft(null)
+    setCalibrationActive(false)
   }, [])
 
   const addDrawPoint = useCallback(
@@ -434,6 +456,7 @@ export function RegionsScreen() {
       const editedKey = pendingEditKey
       createRegion(input)
       if (editedKey !== null) {
+        selectRegion(null)
         setSuggestions((current) =>
           current.filter(
             (suggestion) => suggestion.key !== editedKey,
@@ -446,7 +469,7 @@ export function RegionsScreen() {
         'success',
       )
     },
-    [clearDraft, createRegion, pendingEditKey, showToast],
+    [clearDraft, createRegion, pendingEditKey, selectRegion, showToast],
   )
 
   const startEditSuggestion = useCallback(
@@ -484,6 +507,33 @@ export function RegionsScreen() {
     [suggestions],
   )
 
+  const handleSuggestionGeometryChange = useCallback(
+    (key: string, points: GeometryPoint[]) => {
+      setSuggestions((current) =>
+        current.map((suggestion) => {
+          if (suggestion.key !== key) return suggestion
+          const wasGeometryProblem =
+            suggestion.problem ===
+            computeRegionGeometryProblem(
+              suggestion.geometry_type,
+              suggestion.geometry_json,
+            )
+          return {
+            ...suggestion,
+            geometry_json: points,
+            problem: wasGeometryProblem
+              ? computeRegionGeometryProblem(
+                  suggestion.geometry_type,
+                  points,
+                )
+              : suggestion.problem,
+          }
+        }),
+      )
+    },
+    [],
+  )
+
   const handleAcceptSuggestion = useCallback(
     (key: string) => {
       const suggestion = suggestions.find(
@@ -500,6 +550,7 @@ export function RegionsScreen() {
         surface_type: suggestion.surface_type,
         region_role: suggestion.region_role,
       })
+      selectRegion(null)
       const remaining = suggestions.filter(
         (item) => item.key !== key,
       )
@@ -509,7 +560,7 @@ export function RegionsScreen() {
       )
       showToast('Suggestion added.', 'success')
     },
-    [createRegion, showToast, suggestions],
+    [createRegion, selectRegion, showToast, suggestions],
   )
 
   const handleRejectSuggestion = useCallback(
@@ -550,6 +601,7 @@ export function RegionsScreen() {
         region_role: suggestion.region_role,
       })
     }
+    selectRegion(null)
 
     const acceptedKeys = new Set(
       accepted.map((suggestion) => suggestion.key),
@@ -572,7 +624,13 @@ export function RegionsScreen() {
         : `${accepted.length} ${accepted.length === 1 ? 'suggestion' : 'suggestions'} added.`,
       'success',
     )
-  }, [createRegion, pendingEditKey, showToast, suggestions])
+  }, [
+    createRegion,
+    pendingEditKey,
+    selectRegion,
+    showToast,
+    suggestions,
+  ])
 
   const handleRejectAllSuggestions = useCallback(() => {
     setSuggestions([])
@@ -712,6 +770,7 @@ export function RegionsScreen() {
 
   const cancelCalibration = useCallback(() => {
     setCalibrationDraft(null)
+    setCalibrationActive(false)
   }, [])
 
   const handleCalibrationPoint = useCallback((point: GeometryPoint) => {
@@ -771,6 +830,7 @@ export function RegionsScreen() {
         p2_y: calibrationDraft[1].y,
       })
       setCalibrationDraft(null)
+      setCalibrationActive(true)
       await flushSaves()
     },
     [calibrationDraft, flushSaves, updateCalibration],
@@ -794,12 +854,15 @@ export function RegionsScreen() {
   const handleClearCalibration = useCallback(async () => {
     setClearCalibrationOpen(false)
     setCalibrationDraft(null)
+    setCalibrationActive(false)
     updateCalibration(null)
     await flushSaves()
   }, [flushSaves, updateCalibration])
 
   const handleSelectRegion = useCallback(
     (regionId: string) => {
+      setActiveSuggestionKey(null)
+      setCalibrationActive(false)
       setSurfaceNotice((current) =>
         current?.regionId === regionId ? current : null,
       )
@@ -820,11 +883,18 @@ export function RegionsScreen() {
     [handleSelectRegion, selectRegion, selectedId],
   )
 
-  const handleToggleSuggestion = useCallback((key: string) => {
-    setActiveSuggestionKey((current) =>
-      current === key ? null : key,
-    )
-  }, [])
+  const handleToggleSuggestion = useCallback(
+    (key: string) => {
+      const nextKey = activeSuggestionKey === key ? null : key
+      setActiveSuggestionKey(nextKey)
+      if (nextKey !== null) {
+        setSurfaceNotice(null)
+        setCalibrationActive(false)
+        selectRegion(null)
+      }
+    },
+    [activeSuggestionKey, selectRegion],
+  )
 
   const handleRename = useCallback(
     (name: string) => {
@@ -926,7 +996,7 @@ export function RegionsScreen() {
     regions.length === 0
       ? 'Mark at least one region to continue.'
       : !scaleReady
-        ? 'Set the scale on the photo before continuing.'
+        ? 'Set the calibration on the photo before continuing.'
         : null
 
   return (
@@ -1019,11 +1089,15 @@ export function RegionsScreen() {
                   </button>
                   <button
                     type="button"
-                    aria-pressed={calibrationDraft !== null}
-                    aria-label="Set the scale (C)"
-                    title="Set the scale (C)"
+                    aria-pressed={
+                      calibrationDraft !== null || calibrationActive
+                    }
+                    aria-label="Calibration (C)"
+                    title="Calibration (C)"
                     onClick={beginCalibration}
-                    className={toolButtonClass(calibrationDraft !== null)}
+                    className={toolButtonClass(
+                      calibrationDraft !== null || calibrationActive,
+                    )}
                   >
                     <Ruler className="size-3.5" aria-hidden="true" />
                     Calibrate
@@ -1082,6 +1156,7 @@ export function RegionsScreen() {
                 calibration={calibration}
                 scaleFtPerPx={scaleFtPerPx}
                 calibrationDraft={calibrationDraft}
+                calibrationActive={calibrationActive}
                 drawingTool={drawingTool}
                 draftGeometryType={draftGeometryType}
                 drawPoints={drawPoints}
@@ -1095,14 +1170,18 @@ export function RegionsScreen() {
                 activeSuggestionKey={activeSuggestionKey}
                 containerRef={canvasRef}
                 onSelectRegion={handleSelectRegion}
-                onSelectSuggestion={setActiveSuggestionKey}
+                onSelectSuggestion={handleToggleSuggestion}
                 onCalibrationPoint={handleCalibrationPoint}
                 onMoveCalibrationPoint={handleMoveCalibrationPoint}
                 onCalibrationDragEnd={handleCalibrationDragEnd}
+                onSelectCalibration={handleSelectCalibration}
                 onAddDrawPoint={addDrawPoint}
                 onFinishDraw={finishDrawing}
                 onPendingPointChange={handlePendingShapeChange}
                 onRegionGeometryChange={handleRegionGeometryChange}
+                onSuggestionGeometryChange={
+                  handleSuggestionGeometryChange
+                }
               />
               {showToolHint ? (
                 <div className="mt-3 flex items-start gap-2 rounded-[2px] border border-measure/25 bg-measure-soft/50 px-3 py-2 text-xs leading-5 text-ink-2">
@@ -1200,7 +1279,9 @@ export function RegionsScreen() {
             width={width}
             height={height}
             draftPoints={calibrationDraft}
+            active={calibrationActive}
             error={calibrationError}
+            onActivate={handleSelectCalibration}
             onBegin={beginCalibration}
             onCancel={cancelCalibration}
             onApplyDraft={handleApplyDraft}
@@ -1278,9 +1359,9 @@ export function RegionsScreen() {
 
       <ConfirmDialog
         open={clearCalibrationOpen}
-        title="Clear the scale?"
-        description="Every area that relies on the scale becomes unmeasured until you set it again. Manual measures stay."
-        confirmLabel="Clear scale"
+        title="Clear the calibration?"
+        description="Every area that relies on the calibration becomes unmeasured until you set it again. Manual measures stay."
+        confirmLabel="Clear calibration"
         destructive
         onConfirm={confirmClearCalibration}
         onCancel={closeClearDialog}

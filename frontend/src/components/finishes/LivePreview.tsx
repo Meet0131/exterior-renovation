@@ -488,9 +488,6 @@ export function LivePreview({
           <p className="display mt-0.5 truncate text-base font-semibold tracking-tight">
             Before and after
           </p>
-          <p className="mt-0.5 text-[11px] text-muted">
-            Preview, not a construction drawing.
-          </p>
         </div>
       </div>
 

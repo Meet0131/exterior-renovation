@@ -110,6 +110,7 @@ export interface WorkspaceContextValue {
   reloadMaterials: () => Promise<void>
   refreshRegions: () => Promise<void>
   refreshFinalPreview: () => Promise<FinalPreviewStatus>
+  ensureFinalPreview: () => Promise<FinalPreviewStatus>
   selectRegion: (regionId: string | null) => void
   updateRegion: (
     regionId: string,

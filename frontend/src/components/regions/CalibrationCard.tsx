@@ -10,6 +10,7 @@ import { Button } from '../ui/Button'
 import { NumberInput } from '../ui/NumberInput'
 import { computePointDistance } from '../../lib/geometry'
 import { computeScaleDisplay } from '../../lib/regions'
+import { cn } from '../../lib/cn'
 
 interface CalibrationCardProps {
   calibration: Calibration | null
@@ -17,7 +18,9 @@ interface CalibrationCardProps {
   width: number
   height: number
   draftPoints: GeometryPoint[] | null
+  active: boolean
   error: SaveErrorInfo | null
+  onActivate: () => void
   onBegin: () => void
   onCancel: () => void
   onApplyDraft: (lengthFt: number) => void
@@ -32,7 +35,9 @@ export function CalibrationCard({
   width,
   height,
   draftPoints,
+  active,
   error,
+  onActivate,
   onBegin,
   onCancel,
   onApplyDraft,
@@ -53,6 +58,12 @@ export function CalibrationCard({
   const [draftError, setDraftError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const wasCalibratedRef = useRef(calibration !== null)
+
+  useEffect(() => {
+    if (!active) return
+    // oxlint-disable-next-line react/set-state-in-effect
+    setExpanded(true)
+  }, [active])
 
   useEffect(() => {
     if (draftPoints?.length !== 2) return
@@ -171,26 +182,13 @@ export function CalibrationCard({
     setLengthDraft(null)
   }
 
-  const handleLengthApply = () => {
-    const parsed = Number(displayedLength)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setLengthError('Enter a length greater than 0.')
-      return
-    }
-
-    setLengthError(null)
-    onLengthChange(parsed)
-    onFlush()
-    setLengthDraft(null)
-  }
-
   const serverError = error?.message ?? null
   const summary = drawing
     ? `${pointCount} of 2 points placed`
     : calibration === null
       ? 'Not set'
       : scaleDisplay === null
-        ? 'Reference points are too close'
+        ? 'Calibration points are too close'
         : `1 ft = ${scaleDisplay.pixelsPerFoot} px`
 
   return (
@@ -198,7 +196,11 @@ export function CalibrationCard({
       ref={cardRef}
       tabIndex={-1}
       aria-labelledby="calibration-heading"
-      className="scroll-mt-40 rounded-[2px] border border-line border-l-2 border-l-measure bg-surface p-3 shadow-sheet outline-none sm:p-4"
+      onClick={onActivate}
+      className={cn(
+        'scroll-mt-40 rounded-[2px] border border-line border-l-2 border-l-calibration bg-surface p-3 shadow-sheet outline-none sm:p-4',
+        active && 'ring-1 ring-calibration/25',
+      )}
     >
       <button
         type="button"
@@ -207,7 +209,7 @@ export function CalibrationCard({
         aria-controls={bodyId}
         className="flex w-full items-center gap-2.5 text-left"
       >
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-measure-soft text-measure">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-calibration-soft text-calibration-deep">
           <Ruler
             className="size-4"
             strokeWidth={1.8}
@@ -219,7 +221,7 @@ export function CalibrationCard({
             id="calibration-heading"
             className="display block text-base font-semibold tracking-tight"
           >
-            {drawing ? 'Draw the scale line' : 'Scale'}
+            {drawing ? 'Draw the calibration line' : 'Calibration'}
           </span>
           <span className="mt-0.5 block text-xs text-muted">
             {summary}
@@ -290,7 +292,7 @@ export function CalibrationCard({
               <div className="mt-3 flex flex-wrap gap-2">
                 {pointCount === 2 ? (
                   <Button size="sm" onClick={handleDraftApply}>
-                    Apply scale
+                    Apply length
                   </Button>
                 ) : null}
                 <Button
@@ -308,55 +310,44 @@ export function CalibrationCard({
               onClick={handleBegin}
               icon={<Ruler className="size-3.5" aria-hidden="true" />}
             >
-              Draw the scale line
+              Draw calibration line
             </Button>
           ) : (
             <div>
-              <div className="flex items-end gap-2">
-                <div className="min-w-0 flex-1">
-                  <label
-                    htmlFor={lengthId}
-                    className="text-sm font-medium text-ink-2"
-                  >
-                    Reference length
-                  </label>
-                  <div className="relative mt-1">
-                    <NumberInput
-                      id={lengthId}
-                      value={displayedLength}
-                      min={0}
-                      step="0.01"
-                      inputMode="decimal"
-                      aria-invalid={
-                        lengthError !== null || serverError !== null
-                      }
-                      onFocus={() =>
-                        setLengthDraft(displayedLength)
-                      }
-                      onChange={(event) =>
-                        handleLengthChange(event.target.value)
-                      }
-                      onBlur={handleLengthBlur}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          event.currentTarget.blur()
-                        }
-                      }}
-                      className="h-9 pr-10"
-                    />
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted">
-                      ft
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleLengthApply}
+              <div>
+                <label
+                  htmlFor={lengthId}
+                  className="text-sm font-medium text-ink-2"
                 >
-                  Apply
-                </Button>
+                  Real length (ft)
+                </label>
+                <div className="relative mt-1">
+                  <NumberInput
+                    id={lengthId}
+                    value={displayedLength}
+                    min={0}
+                    step="0.01"
+                    inputMode="decimal"
+                    aria-invalid={
+                      lengthError !== null || serverError !== null
+                    }
+                    onFocus={() => setLengthDraft(displayedLength)}
+                    onChange={(event) =>
+                      handleLengthChange(event.target.value)
+                    }
+                    onBlur={handleLengthBlur}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className="h-9 pr-10"
+                  />
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted">
+                    ft
+                  </span>
+                </div>
               </div>
 
               {lengthError !== null || serverError !== null ? (
@@ -371,8 +362,8 @@ export function CalibrationCard({
               <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-xs text-muted">
                 {scaleDisplay === null ? (
                   <span className="text-danger">
-                    The reference points are too close. Redraw the
-                    line.
+                    The calibration points are too close. Drag them
+                    apart.
                   </span>
                 ) : (
                   <>
@@ -387,19 +378,12 @@ export function CalibrationCard({
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleBegin}
-                >
-                  Redraw line
-                </Button>
                 <button
                   type="button"
                   onClick={onClear}
                   className="inline-flex items-center rounded-md px-2 py-1.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-soft"
                 >
-                  Clear scale
+                  Clear calibration
                 </button>
               </div>
             </div>

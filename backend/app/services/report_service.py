@@ -332,7 +332,7 @@ def _build_photo_grid(
             [source, preview],
             [
                 Paragraph("Original photo", styles["caption"]),
-                Paragraph("Proposed finish", styles["caption"]),
+                Paragraph("Proposed design", styles["caption"]),
             ],
         ],
         colWidths=[_CONTENT_WIDTH / 2, _CONTENT_WIDTH / 2],
